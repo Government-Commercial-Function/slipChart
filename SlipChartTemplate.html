@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400&display=swap" rel="stylesheet">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <!-- <script src="https://d3js.org/d3-voronoi.v1.min.js"></script> -->
+    <!-- <script src="https://unpkg.com/browse/d3-delaunay@3.1.7/dist/d3-delaunay.min.js"></script> -->
+    <script src="https://unpkg.com/d3-moveto@0.0.3/build/d3-moveto.min.js"></script>
+    <script src="https://unpkg.com/jeezy@1.12.13/lib/jeezy.min.js"></script>
+    <style>
+
+      body {
+        /*font-family: "Helvetica Neue", sans-serif;*/
+        font-family: 'Newsreader', serif;
+        font-weight: 600;
+        margin: 0;
+        background-color: #f0f4f4;
+      }
+      .clipping{
+        fill: #f0f4f4;
+      }
+      #wrapper {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .circle {
+        pointer-events: none;
+      }
+      .circle-bg {
+        stroke: steelblue;
+        fill: steelblue;
+        fill-opacity: .3;
+        pointer-events: none;
+      }
+      .circle-hover {
+        opacity: 0;
+      }
+      .axis .domain {
+        display: none;
+      }
+      .axis text {
+        font-family: 'Lato', sans-serif;
+        font-size: 1em;
+      }
+      .axis.title text {
+        font-family: 'Lato', sans-serif;
+        font-size: 0.7em;
+      }
+      .axis.y.right .tick text {
+        /*fill: steelblue;*/
+      }
+      .axis.y .tick line {
+        stroke:   #e8e7e3;
+        stroke-width: 10px;
+      }
+      .axis.x .tick line {
+        stroke: #ccc;
+      }
+      .tip {
+        font-size: .8em;
+      }
+      .header {margin-top: 20px}
+      /* .sidenav {margin-top: 20px} */
+      .make-me-sticky {
+        position: -webkit-sticky;
+        position: sticky;
+        margin-top: 45px
+        top: 0;
+
+        padding: 0 15px;
+      }
+      .label {
+        font-family: 'Lato', sans-serif;
+        z-index: 10;
+        font-weight: 400;
+        font-size: .5em;
+        text-shadow: -1px -1px 1px #f0f4f4, -1px 0px 1px #f0f4f4, -1px 1px 1px #f0f4f4, 0px -1px 1px #f0f4f4, 0px 1px 1px #f0f4f4, 1px -1px 1px #f0f4f4, 1px 0px 1px #f0f4f4, 1px 1px 1px #f0f4f4;
+      }
+      .scroll {
+          -webkit-overflow-scrolling: touch;
+          white-space: nowrap;
+          overflow-x: scroll;
+        }
+      .scroll {
+          &::-webkit-scrollbar {
+            display: none;
+          }
+        }
+    </style>
+  </head>
+  <body>
+
+
+<div class="container-fluid text-center">
+  <div class="header">
+    <h1>{{ _title }}}</h1>
+    <p>An interactive chart showing key milestones over time, their dependencies, and any project slippage.</p>
+  </div>
+  <div class="row content">
+    <div class="col-lg-2 sidenav text-left tip">
+      <div class="make-me-sticky">
+        <hr>
+        <h4>How to read this chart</h4>
+        <p>The chart is split into two main sections:</p>
+        <ol>
+          <li>The top half of the chart shows the top level milestones over time.</li>
+          <li>The lower half of the chart has a line for each milestone. It shows any movement (slippage) of these milestones each month.</li>
+        </ol>
+        <p>Hover over the circles in the chart to highlight dependencies, show further detail and identify any slippage over time.</p>
+      <hr>
+      </div>
+    </div>
+    <div id="wrapperContainer" class="col-lg-8 text-left scroll">
+      <hr>
+      <div id="wrapper"></div>
+      <hr>
+    </div>
+    <div class="col-lg-2 sidenav text-left">
+      <div>
+        <div>
+          <hr>
+          <h4>Key:</h4>
+        </div>
+      </div>
+      <div id="key">
+      </div>
+      <div id="info">
+      </div>
+      <hr>
+    </div>
+  </div>
+</div>
+
+<footer class="container-fluid text-center tip">
+  <p>Josh Taylor 2021</p>
+</footer>
+    <script>
+      var radius = 8;
+      var setWidth = 800//+jz.str.keepNumber(d3.select("#wrapper").style("width"))
+      var margin = {top: radius * 2.5 + 10, left: 120, bottom: radius* 2+20, right: 30, seperator:40},
+        width =  setWidth- margin.left - margin.right,
+        height = 620 - margin.top - margin.bottom, //Hight of 600 is the max for an iphone 6...
+        svg = d3.select("#wrapper").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+            .attr("transform", "translate(" + margin.left + ", " + margin.top + ")");
+
+      var seperator = height/2 +margin.seperator/2  //used for padding between the two charts
+      const formatDate = d3.timeFormat("%Y-%m-%d");
+      const color = d3.scaleOrdinal()
+        .domain([
+          'Green',
+          'Amber',
+          'Red',
+          'Complete'
+        ])
+        .range([
+          '#2ca25f',
+          '#feb24c',
+          '#f03b20',
+          '#43a2ca'
+        ]);
+      var lineWidth = 2.0
+
+      var x_scale = d3.scaleTime()
+        .rangeRound([0, width]);
+
+      var y_scale = d3.scaleBand()
+        .rangeRound([0, height/2]);
+
+      var y2 = d3.scaleTime()
+        .rangeRound([ height/2 -margin.seperator,0]); //not reversed from y to 'flip' lines
+
+      var curr_month = "";
+
+      var x_axis = d3.axisBottom(x_scale)
+          .tickSizeOuter(0)
+          .ticks(d3.timeMonth.every(1))
+;
+
+      var y_axis_left = d3.axisLeft(y_scale)
+          .tickSize(0)
+
+      var y_axis_left2 = d3.axisLeft(y2) //for the slipchart
+          .tickSize(0)
+          .ticks(d3.timeMonth.every(1))
+
+      var y_axis_right = d3.axisRight(y_scale)
+          .tickSizeOuter(0)
+          .tickSizeInner(-width);
+
+      // var v = d3.voronoi()
+      //   .extent([[0, 0], [width+1000, height+1000]])
+      //   .x(function(d) { return d.x; })
+      //   .y(function(d) { return d.y; });
+
+      var parseDate = function(x){
+        var s = x.split("-");
+        var d = [s[2], s[0], s[1]].join("-");
+        return new Date(d);
+      }
+
+      // defs for gradients
+      var defs = d3.select("svg").append("defs");
+
+      // append the tip
+      var tip = d3.select("#info").append("div")
+          .attr("class", "tip");
+      var data ={{ _data}}
+
+
+        data_milestones = data.Milestones
+
+        data_milestones.forEach(function(d,i){
+          d.slug = jz.str.toSlugCase(d.ID);
+        });
+
+        current_data = data_milestones.filter(function(d){return d.is_current===1})
+
+        x_scale.domain([new {{_startDate}}, new {{_endDate}}]);
+
+        var industries = jz.arr.sortBy(jz.arr.pivot(current_data, "Area") , "desc");//sort alpha - to sort by number of milestones use "count" rather than desc
+        y_scale.domain(industries.map(function(d){ return d.value; }));
+
+        y2.domain([d3.min(data_milestones, (d) =>{
+                  return d['Date captured']
+                }),d3.max(data_milestones, (d) =>{
+                  return d['Date captured']
+                })])
+        // y2.domain([new Date(2020, 10, 1), new Date(2021, 4, 1)])
+
+        x_axis.tickSizeInner(-height + y_scale.bandwidth() / 2 - 3)
+
+
+
+        svg.append("g")
+            .attr("class", "axis y right")
+            .attr("transform", "translate(" + width + ", 0)")
+            .call(y_axis_right.tickFormat(function(d){ return industries.filter(function(c){ return c.value == d })[0].count; }))
+          .selectAll(".tick text")
+            .attr("dx", radius);
+
+        svg.append("g")
+            .attr("class", "axis x")
+            .attr("transform", "translate(0, " + height + ")")
+            .call(x_axis)
+          .selectAll(".tick line")
+            .style("display", function(d){
+              var s = d.toString().split(" ");
+              var m = s[1];
+              if (m !== curr_month){
+                curr_month = m;
+                return "block";
+              } else {
+                return "none";
+              }
+            });
+
+            //append to the top as well so you can see when zoomed in:
+            svg.append("g")
+                .attr("class", "axis x")
+                .attr("transform", "translate(0,-30)")
+                .call(x_axis)
+
+
+
+
+
+
+
+        forceSim();
+         // from https://www.d3-graph-gallery.com/graph/arc_basic.html
+          // Add links between nodes. Here is the tricky part.
+          // In my input data, links are provided between nodes -id-, NOT between node names.
+          // So I have to do a link between this id and the name
+          var idToNode = {};
+          current_data.forEach(function (n) {
+            idToNode[n.ID] = n;
+          });
+          // The below then uses this data for building a datset that can be applied to the d3 links function (from http://using-d3js.com/05_08_links.html)
+          //This creates a self contained node data set with the from and to IDs as well as the x and y co-ords stored in source and target
+
+
+
+        draw();
+
+        // window.addEventListener("resize", function(){
+
+        //   // all of these things need to be updated on resize
+        //   width = +jz.str.keepNumber(d3.select("#wrapper").style("width")) - margin.left - margin.right;
+
+        //   d3.select(".axis.y.right").attr("transform", "translate(" + width + ", 0)").call(y_axis_right.tickSizeInner(-width));
+
+        //   x_scale.rangeRound([0, width]);
+
+        //   forceSim();
+
+        //   d3.select(".x.axis")
+        //     .call(x_axis);
+
+        //   draw();
+        // });
+
+        function draw(){
+
+
+
+
+          //LINKS
+          var node_xy = [];
+          data.Links.forEach(function (n) {
+              source = [idToNode[n.from].x, idToNode[n.from].y]
+              target = [idToNode[n.to].x, idToNode[n.to].y]
+              node_xy.push({'from': n.from, 'to':n.to, 'source': source,'target':target,});
+            });
+          var linkGen = d3.linkHorizontal();
+          var links = svg
+                  .selectAll('links')
+                  .data(node_xy)
+                  .join("path")
+                  .attr("d", linkGen)
+                  .attr("fill", "none")
+                  .attr("opacity",0.3)
+                  .style('stroke-width',lineWidth)
+                  .style('stroke-linecap','round')
+                  .style("stroke", 'url(#gradient)');
+
+
+        // add gradient to links
+          links.style('stroke', (d, i) => {
+            // make unique gradient ids
+            const gradientID = `gradient${i}`;
+              //console.log(gradientID)
+            const startColor = color(idToNode[d.from].Status);
+            const stopColor = color(idToNode[d.to].Status);
+            const linearGradient = defs.append('linearGradient')
+                .attr('id', gradientID);
+
+            linearGradient.selectAll('stop')
+              .data([
+                  {offset: '10%', color: startColor },
+                  {offset: '90%', color: stopColor }
+                ])
+              .enter().append('stop')
+              .attr('offset', d => {
+                return d.offset;
+              })
+              .attr('stop-color', d => {
+                return d.color;
+              });
+
+            return `url(#${gradientID})`;
+          })
+
+          //function to handle text wrapping from: https://bl.ocks.org/mbostock/7555321
+          function wrap(text, width) {
+            text.each(function() {
+              var text = d3.select(this),
+                  words = text.text().split(/\s+/).reverse(),
+                  word,
+                  line = [],
+                  lineNumber = 0,
+                  lineHeight = 0.9, // ems
+                  y = text.attr("y"),
+                  dy = parseFloat(text.attr("dy")),
+                  tspan = text.text(null).append("tspan").attr("x",0).attr("y", y).attr("dy", dy + "em");
+              while (word = words.pop()) {
+                line.push(word);
+                tspan.text(line.join(" "));
+                if (tspan.node().getComputedTextLength() > width) {
+                  line.pop();
+                  tspan.text(line.join(" "));
+                  line = [word];
+                  tspan = text.append("tspan").attr("x", radius+3).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+                }
+              }
+            });
+          }
+
+          //LINE CHART:
+
+            line = d3
+              .line()
+              .x(d => x_scale(d['Milestone date']))
+              .y(d => y2(d['Date captured'])+seperator)
+              .curve(d3.curveMonotoneY)
+
+            line_group = svg.append("g")
+            line_group
+              .selectAll('path')
+              .data(data.Lines)
+              .join('path')
+              .attr('class', 'stock-lines')
+              .attr('d', line)
+              .attr("opacity",0.4)
+              .style('stroke', (d,i) => color(d[0].Status))
+              .style('stroke-width', lineWidth)
+              .style('fill', 'transparent');
+
+
+
+        svg.selectAll(".dot")
+            .data(data_milestones)
+          .enter().append("circle") // Uses the enter().append() method
+            .attr("class", "dot") // Assign a class for styling
+            .attr("opacity",0.4)
+            .style('stroke', (d) => color(d.Status))
+            .attr("cx", function(d) { return x_scale(d['Milestone date']); })
+            .attr("cy", function(d) { return y2(d['Date captured']) +seperator; })
+            .style('fill', 'white')
+            .attr("r", 2);
+
+            // circle
+            var elements = svg.selectAll(".circle")
+                .data(current_data, function(d){ return d.slug; })
+                .enter()
+                .append("g")
+                .attr("id","element")
+                .attr("transform", function(d){return "translate("+d.x+","+d.y+")"});
+
+            elements.append("circle")
+                .attr("id","circle")
+                .attr("r", radius )
+                .attr("stroke","black")
+                .attr("opacity",0.4)
+                .attr("fill", function(d){return color(d.Status)});
+
+            var labels = d3.selectAll("#element").append("text")
+                .attr("class","label")
+                .attr("dx", radius+3)
+                .attr("dy", 0)
+                .text(function(d){return d.Milestone})
+                .call(wrap,100)
+        //LEGEND
+
+        function buildLegend() {
+
+          var legendSVG = d3.select("#key").append("svg")
+                   .attr("width", 70)
+                  .attr("height", 100)
+          var legend = legendSVG.selectAll(".legend")
+          .data(["Complete","Green","Amber","Red"])
+          .enter()
+          .append("g")
+          .attr("class","legend")
+          //.attr("transform", "translate("+w+"," + 0+ ")");
+
+
+           legend.append("rect")
+             .attr("x", 0)
+             .attr("y", function(d, i) { return 20 * i; })
+             .attr("width", 15)
+             .attr("height", 15)
+             .style("opacity", 0.4)
+            .style("fill", function(d) { return color(d)});
+
+
+            legend.append("text")
+             .attr("x", 20)
+              .attr("text-anchor", "start")
+             .attr("dy", "1em")
+             .attr("y", function(d, i) { return 20 * i; })
+             .text(function(d) {return d;})
+            .attr("font-size", "10px");
+
+        };
+        buildLegend();
+
+        //FOR CLIPPING
+        svg.append("rect")
+            .attr("class", "clipping")
+            .attr("x",-margin.left)
+            .attr("y", 0)
+            .attr("width",margin.left)
+            .attr("height",height)
+            ;
+        //LEFT AXIS 1
+            svg.append("g") //for the 2ndary axis - for the slip chart
+                .attr("class", "axis y left")
+                .call(y_axis_left2)
+                .attr("transform", "translate(0,"+ seperator +")")
+              .selectAll(".tick text")
+                .attr("dx", -radius);
+
+        //LEFT AXIS 2
+        const g = svg.append("g")
+            .attr("class", "axis y left")
+            .call(y_axis_left)
+          .selectAll(".tick text")
+            .attr("dx", -radius);
+
+
+            // Add X axis label:
+      svg.append("g")
+          .attr("class", "axis title")
+          .append("text")
+          .attr("text-anchor", "end")
+          .attr("x", width/2)
+          .attr("y", height +35)
+          .style('fill', '#b0b8b7')
+          .text("Date milestone will be hit");
+
+          // Add y axis label:
+      svg.append("g")
+        .attr("class", "axis title")
+        .append("text")
+        .attr("text-anchor", "end")
+        .attr("x",-height+height/2.5)
+        .attr("y", -margin.left+20)
+        .attr("transform", "rotate(-90)")
+        .style('fill', '#b0b8b7')
+        .text("Date of review");
+
+        // Add y axis label:
+      svg.append("g")
+      .attr("class", "axis title")
+      .append("text")
+      .attr("text-anchor", "centre")
+      .attr("x",-height/5)
+      .attr("y", -margin.left+20)
+      .attr("transform", "rotate(-90)")
+      .style('fill', '#b0b8b7')
+      .text("Project Area");
+
+
+          //Mouseover
+          svg.selectAll("#circle").on("mouseover", function(d,i){
+            var infoHTML  = "<p><i>Milestone: </i><br>" + i.Milestone+"</p>"
+            infoHTML = infoHTML.concat( "<p><i>Description: </i><br>" + i['Milestone Description']+"</p>")
+            infoHTML = infoHTML.concat( "<p><i>Date: </i><br>" + formatDate(i['Milestone date'])+"</p>")
+            tip.html(infoHTML);
+
+            d3.select(this).attr("r", radius * 2.5).moveToFront();
+
+            // var tip_width = +jz.str.keepNumber(tip.style("width"));
+            // var tip_height = +jz.str.keepNumber(tip.style("height"));
+
+            var circle_node = d3.select(this).node().getBoundingClientRect();
+            var circle_left = circle_node.left;
+            var circle_top = circle_node.top;
+
+            // var tip_left = circle_left - tip_width / 2 + radius;
+            // var tip_top = circle_top - radius * 1.5 - tip_height;
+            //Highlight the links:
+            links
+                //.style('stroke', function (link_d) { return link_d.from === i.ID || link_d.to === i.ID ? '#69b3b2' : '#b8b8b8';})
+                .style('stroke-width', function (link_d) { return link_d.from === i.ID || link_d.to === i.ID ? radius : lineWidth;})
+
+            //highlight the lines:
+            d3.selectAll('.stock-lines')
+                .style('stroke-width', function (d) {return d[0].ID === i.ID ? radius/2 : lineWidth; })
+
+            // tip
+            //     .style("left", tip_left + "px")
+            //     .style("top", tip_top + "px");
+
+          }).on("mouseout", function(d,i){
+            d3.select(this).attr("r", radius);
+
+            links
+              .style('stroke-width',lineWidth)
+
+            d3.selectAll('.stock-lines')
+                .style('stroke-width', lineWidth)
+
+            tip
+              .style("left", "-1000px")
+              .style("top", "-1000px");
+
+          });
+
+        }
+
+        function forceSim(){
+          var simulation = d3.forceSimulation(current_data)
+              .force("y", d3.forceY(function(d){ return y_scale(d.Area) + y_scale.bandwidth()/1.6; }).strength(0.05))
+              .force("x", d3.forceX(function(d){ return x_scale(d['Milestone date']); }).strength(10))
+              .force("collide", d3.forceCollide(radius + 1.5))
+              .stop();
+
+          for (var i = 0; i < 150; ++i) simulation.tick();
+        }
+
+
+    </script>
+  </body>
+</html>
